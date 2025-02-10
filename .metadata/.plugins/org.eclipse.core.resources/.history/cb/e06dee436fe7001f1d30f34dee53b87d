@@ -1,0 +1,117 @@
+package com.reservations.flights.controllers;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.reservations.flights.dto.ReservationRequestDto;
+import com.reservations.flights.dto.ReservationResponseDto;
+import com.reservations.flights.model.Flight;
+import com.reservations.flights.model.Reservation;
+import com.reservations.flights.model.Seat;
+import com.reservations.flights.services.IFlightService;
+import com.reservations.flights.services.IReservationService;
+import com.reservations.flights.services.ISeatService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+
+
+@RestController
+@RequestMapping("/api/reservations")
+@Tag(name = "Reservaciones", description =  "Operaciones relacionadas con las reservaciones de vuelos")
+public class ReservationController {
+	
+	Logger log = LoggerFactory.getLogger(ReservationController.class);
+	
+	private IReservationService reservationService;
+	
+	private IFlightService flightService;
+	
+	private ISeatService seatService;
+	
+	public ReservationController(IReservationService reservationService, 
+			IFlightService flightService, ISeatService seatService) {
+		this.reservationService = reservationService;
+		this.flightService = flightService;
+		this.seatService = seatService;
+	}
+	
+	@GetMapping
+    @Operation(summary = "Obtener las reservaciones activas", description = " Devuelve los detalles de una reservaciónes.")
+	public ResponseEntity<?> findAll() {	
+		try {
+			List<ReservationResponseDto> reservations = reservationService.findByCancelledFalse();
+			return reservations.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(reservations);
+		} catch (Exception e) {
+			log.error("Error en la reservación: " + e.getMessage());
+			return ResponseEntity.noContent().build();
+		}			
+	}
+	
+	@PostMapping
+	@Operation(summary = "Guardar una reservación")
+	public ResponseEntity<?> save(@Parameter(name = "reservationDto", description = "Datos de la reservación", required = true)  
+								  @RequestBody ReservationRequestDto reservationDto){
+		
+		try {
+			Flight flight = flightService.findByOriginAndDestiny(reservationDto.origen().toUpperCase(), reservationDto.destino().toUpperCase());
+			if (flight == null) {
+	            return ResponseEntity.badRequest().body("Vuelo no encontrado");
+	        }
+			Seat seat = seatService.findByFlightIdAndNumberAndAvailableTrue(flight.getId(), reservationDto.asiento());
+			if (seat == null) {
+	            return ResponseEntity.badRequest().body("Asiento no encontrado o no disponible");
+	        }	
+			seat.setAvailable(false);		
+			Optional<Reservation> reservationOp = reservationService.save(new Reservation(reservationDto.passengerName(), flight, seat));
+			if (!reservationOp.isPresent()) {
+	            return ResponseEntity.badRequest().body("Reserva no guardada");
+	        }	
+			String num = reservationOp.get().getId()!=null?reservationOp.get().getId().toString():"Generando...";
+			
+			return ResponseEntity.ok(new ReservationResponseDto(num, reservationOp.get().getPassengerName(), 
+					flight.getOrigin(), flight.getDestiny(), seat.getNumber(), "Reserva Enviada"));        
+			
+		} catch (Exception e) {            
+            log.error("Error en la reservación: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Error en la reservación");
+		}
+		
+						
+	}
+	
+	@GetMapping("/cancel/{numero}")
+	@Operation(summary = "Cancelar una reservación", description = "Cancelar una reservación.")
+	public ResponseEntity<?> cancel(@Parameter(name = "numero", description = "Número de la reservación", required = true)
+									@PathVariable("numero") Long id) {
+		
+		try {
+			Optional<Reservation> reservationOp = reservationService.deleteById(id);
+			if (!reservationOp.isPresent()) {
+				return ResponseEntity.badRequest().body("Reserva no encontrada");
+			}
+			return reservationOp.map(reservation -> {
+				return ResponseEntity.ok(new ReservationResponseDto(reservation.getId().toString(),
+						reservation.getPassengerName(), reservation.getFlight().getOrigin(),
+						reservation.getFlight().getDestiny(), reservation.getSeat().getNumber(), "Reserva cancelada"));
+			}).orElseThrow();
+			
+		} catch (Exception e) {
+			log.error("Error en la cancelación de la reservación: " + e.getMessage());
+			return ResponseEntity.badRequest().body("Error en la cancelación de la reservación");
+		}
+	}
+	
+}

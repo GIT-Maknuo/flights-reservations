@@ -1,0 +1,83 @@
+package com.reservations.flights.service;
+
+import static org.mockito.Mockito.*;
+
+import java.util.Optional;
+import java.util.List;
+import java.util.Arrays;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.reservations.flights.dto.FlightRequestDto;
+import com.reservations.flights.model.Flight;
+import com.reservations.flights.repositories.FlightRepository;
+
+@ExtendWith(MockitoExtension.class)
+public class FlightServiceImplTest {
+
+    @Mock
+    private FlightRepository flightRepository;
+
+    @InjectMocks
+    private FlightServiceImpl flightService;
+
+    @Test
+    void testFindByOriginAndDestiny() {
+        Flight flight = new Flight("NYC", "LAX", 200);
+        when(flightRepository.findByOriginAndDestiny("NYC", "LAX")).thenReturn(flight);
+
+        Flight result = flightService.findByOriginAndDestiny("NYC", "LAX");
+        assertEquals(flight, result);
+        verify(flightRepository, times(1)).findByOriginAndDestiny("NYC", "LAX");
+    }
+
+    @Test
+    void testFindById() {
+        Flight flight = new Flight("NYC", "LAX", 200);
+        flight.setId(1L);
+        when(flightRepository.findById(1L)).thenReturn(Optional.of(flight));
+
+        Optional<Flight> result = flightService.findById(1L);
+        assertEquals(Optional.of(flight), result);
+        verify(flightRepository, times(1)).findById(1L);
+    }
+
+    @Test
+    void testSave_NewFlight() {
+        FlightRequestDto flightRequest = new FlightRequestDto("NYC", "LAX", 200);
+        Flight flight = new Flight("NYC", "LAX", 200);
+        when(flightRepository.findByOriginAndDestiny("NYC", "LAX")).thenReturn(null);
+        when(flightRepository.save(any(Flight.class))).thenReturn(flight);
+
+        Flight result = flightService.save(flightRequest);
+        assertEquals(flight, result);
+        verify(flightRepository, times(1)).findByOriginAndDestiny("NYC", "LAX");
+        verify(flightRepository, times(1)).save(any(Flight.class));
+    }
+
+    @Test
+    void testSave_ExistingFlight() {
+        FlightRequestDto flightRequest = new FlightRequestDto("NYC", "LAX", 200);
+        Flight flight = new Flight("NYC", "LAX", 200);
+        when(flightRepository.findByOriginAndDestiny("NYC", "LAX")).thenReturn(flight);
+
+        Flight result = flightService.save(flightRequest);
+        assertEquals(flight, result);
+        verify(flightRepository, times(1)).findByOriginAndDestiny("NYC", "LAX");
+        verify(flightRepository, never()).save(any(Flight.class));
+    }
+
+    @Test
+    void testFindAll() {
+        List<Flight> flights = Arrays.asList(new Flight("NYC", "LAX", 200), new Flight("SFO", "ORD", 150));
+        when(flightRepository.findAll()).thenReturn(flights);
+
+        List<Flight> result = flightService.findAll();
+        assertEquals(flights, result);
+        verify(flightRepository, times(1)).findAll();
+    }
+}

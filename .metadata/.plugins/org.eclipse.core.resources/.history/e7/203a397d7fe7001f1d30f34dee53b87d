@@ -1,0 +1,138 @@
+package com.reservations.flights.controllers;
+
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.reservations.flights.dto.ReservationRequestDto;
+import com.reservations.flights.dto.ReservationResponseDto;
+import com.reservations.flights.model.Flight;
+import com.reservations.flights.model.Reservation;
+import com.reservations.flights.model.Seat;
+import com.reservations.flights.services.IFlightService;
+import com.reservations.flights.services.IReservationService;
+import com.reservations.flights.services.ISeatService;
+
+@WebMvcTest(ReservationController.class)
+public class ReservationControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private IReservationService reservationService;
+
+    @MockBean
+    private IFlightService flightService;
+
+    @MockBean
+    private ISeatService seatService;
+
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setUp() {
+        objectMapper = new ObjectMapper();
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testFindAllReservations() throws Exception {
+        List<ReservationResponseDto> reservations = Arrays.asList(
+                new ReservationResponseDto("1", "John Doe", "NYC", "LAX", "1A", "Reserva Activa"),
+                new ReservationResponseDto("2", "Jane Doe", "BOS", "MIA", "2B", "Reserva Activa")
+        );
+
+        when(reservationService.findByCancelledFalse()).thenReturn(reservations);
+
+        mockMvc.perform(get("/api/reservations"))
+                .andExpect(status().isOk())
+                .andExpect(content().json(objectMapper.writeValueAsString(reservations)));
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testSaveReservation() throws Exception {
+        ReservationRequestDto request = new ReservationRequestDto("John Doe", "NYC", "LAX", "1A");
+        Flight flight = new Flight(1L, "NYC", "LAX", 10, Collections.emptyList());
+        Seat seat = new Seat("1A", true, flight);
+        Reservation reservation = new Reservation("John Doe", flight, seat);
+        ReservationResponseDto response = new ReservationResponseDto("1", "John Doe", "NYC", "LAX", "1A", "Reserva Enviada");
+
+        when(flightService.findByOriginAndDestiny("NYC", "LAX")).thenReturn(flight);
+        when(seatService.findByFlightIdAndNumberAndAvailableTrue(1L, "1A")).thenReturn(seat);
+        when(reservationService.save(reservation)).thenReturn(Optional.of(reservation));
+
+        mockMvc.perform(post("/api/reservations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testCancelReservation() throws Exception {
+        Reservation reservation = new Reservation("John Doe", new Flight(), new Seat());
+        ReservationResponseDto response = new ReservationResponseDto("1", "John Doe", "NYC", "LAX", "1A", "Reserva cancelada");
+
+        when(reservationService.deleteById(1L)).thenReturn(Optional.of(reservation));
+
+        mockMvc.perform(get("/api/reservations/cancel/1"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testFindAllReservations_NoContent() throws Exception {
+        when(reservationService.findByCancelledFalse()).thenReturn(Collections.emptyList());
+
+        mockMvc.perform(get("/api/reservations"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testSaveReservation_BadRequest() throws Exception {
+        ReservationRequestDto request = new ReservationRequestDto("John Doe", "NYC", "LAX", "1A");
+
+        when(flightService.findByOriginAndDestiny("NYC", "LAX")).thenReturn(null);
+
+        mockMvc.perform(post("/api/reservations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testCancelReservation_BadRequest() throws Exception {
+        when(reservationService.deleteById(1L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/reservations/cancel/1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("Reserva no encontrada"));
+    }
+}
+

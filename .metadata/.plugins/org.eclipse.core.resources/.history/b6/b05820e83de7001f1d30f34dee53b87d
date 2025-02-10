@@ -1,0 +1,72 @@
+package com.reservations.flights.controllers;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.reservations.flights.dto.FlightRequestDto;
+import com.reservations.flights.dto.FlightResponseDto;
+import com.reservations.flights.model.Flight;
+import com.reservations.flights.services.IFlightService;
+
+import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+
+
+@RestController
+@RequestMapping("/api/flights")
+@Tag(name = "Vuelos", description =  "Operaciones relacionadas con los vuelos")
+public class FlightController {
+	
+	private IFlightService flightService;
+
+	public FlightController(IFlightService flightService) {
+		super();
+		this.flightService = flightService;
+	}
+	
+	@GetMapping
+	@Operation(summary = "Obtener los vuelos", description = "Devuelve los detalles de los vuelos.")
+	public ResponseEntity<?> getFlights() {
+		List<FlightResponseDto> response = flightService.findAll()
+				.stream()
+				.map(flght ->{
+					return new FlightResponseDto(flght.getId(), flght.getOrigin(), flght.getDestiny());
+				}).collect(Collectors.toList());		
+		return response
+				.isEmpty() ? ResponseEntity.noContent().build() : ResponseEntity.ok(response);
+	}
+	
+	
+	@GetMapping("	")
+    @Hidden
+	public ResponseEntity<?> getFlight(@PathVariable String origin, @PathVariable String destiny) {
+		Flight flight = flightService.findByOriginAndDestiny(origin.toUpperCase(), destiny.toUpperCase());
+		return flight == null ? ResponseEntity.noContent().build() 
+				: ResponseEntity.ok(new FlightResponseDto(flight.getId(), flight.getOrigin(), flight.getDestiny()));
+	}
+	
+	@PostMapping
+	//@Operation(summary = "Crear un vuelo", description = "Crea un nuevo vuelo.")
+	@Hidden
+	public ResponseEntity<?> saveFlight(@RequestBody FlightRequestDto flight) {
+		return Optional.of(flightService.save(flight))
+				.map(flght ->{
+					return ResponseEntity.ok(
+							new FlightResponseDto(flght.getId(), flight.origin().toUpperCase(), 
+									flight.destiny().toUpperCase()));
+				}).orElseThrow();		
+	}
+	
+
+}

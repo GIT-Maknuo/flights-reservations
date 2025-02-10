@@ -1,0 +1,91 @@
+package com.reservations.flights.controllers;
+
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.Collections;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.MockMvc;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.reservations.flights.dto.SeatResponseDto;
+import com.reservations.flights.services.ISeatService;
+
+@WebMvcTest(SeatController.class)
+public class SeatControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private ISeatService seatService;
+
+    private ObjectMapper objectMapper;
+
+    @BeforeEach
+    void setUp() {
+        objectMapper = new ObjectMapper();
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testCreateSeat() throws Exception {
+        when(seatService.createSeats("NYC", "LAX")).thenReturn(Collections.emptyList());
+
+        mockMvc.perform(put("/api/seats/NYC/LAX"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testGetSeats() throws Exception {
+        SeatResponseDto seatResponse = new SeatResponseDto(1L,"NYC", "LAX", Collections.emptyList());
+
+        when(seatService.findByFlightOriginAndFlightDestinyAndAvailableTrue("NYC", "LAX")).thenReturn(seatResponse);
+
+        mockMvc.perform(get("/api/seats/NYC/LAX"))
+                .andExpect(status().isOk())
+                .andExpect(content().json(objectMapper.writeValueAsString(seatResponse)));
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testGetSeats_NoContent() throws Exception {
+        when(seatService.findByFlightOriginAndFlightDestinyAndAvailableTrue("NYC", "LAX")).thenReturn(null);
+
+        mockMvc.perform(get("/api/seats/NYC/LAX"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testCreateSeat_BadRequest() throws Exception {
+        when(seatService.createSeats("NYC", "LAX")).thenThrow(new RuntimeException("Error al crear los asientos"));
+
+        mockMvc.perform(put("/api/seats/NYC/LAX"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "freddy", roles = {"ADMIN"})
+    void testGetSeats_Error() throws Exception {
+        when(seatService.findByFlightOriginAndFlightDestinyAndAvailableTrue("NYC", "LAX")).thenThrow(new RuntimeException("Error al obtener los asientos"));
+
+        mockMvc.perform(get("/api/seats/NYC/LAX"))
+                .andExpect(status().isNoContent());
+    }
+}

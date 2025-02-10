@@ -1,0 +1,99 @@
+package com.reservations.flights.service;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import com.reservations.flights.dto.SeatResponseDto;
+import com.reservations.flights.model.Flight;
+import com.reservations.flights.model.Seat;
+import com.reservations.flights.repositories.FlightRepository;
+import com.reservations.flights.repositories.SeatRepository;
+import com.reservations.flights.services.SeatServiceImpl;
+
+@ExtendWith(MockitoExtension.class)
+public class SeatServiceImplTest {
+
+    @Mock
+    private SeatRepository seatRepository;
+
+    @Mock
+    private FlightRepository flightRepository;
+
+    @InjectMocks
+    private SeatServiceImpl seatService;
+
+    @Test
+    void testFindByFlightIdAndNumberAndAvailableTrue() {
+        Seat seat = new Seat("A1", true, new Flight());
+        when(seatRepository.findByFlightIdAndNumberAndAvailableTrue(1L, "A1")).thenReturn(seat);
+
+        Seat result = seatService.findByFlightIdAndNumberAndAvailableTrue(1L, "A1");
+        assertEquals(seat, result);
+        verify(seatRepository, times(1)).findByFlightIdAndNumberAndAvailableTrue(1L, "A1");
+    }
+
+    @Test
+    void testFindAll() {
+        List<Seat> seats = new ArrayList<>();
+        seats.add(new Seat());
+        seats.add(new Seat());
+        when(seatRepository.findAll()).thenReturn(seats);
+
+        List<Seat> result = seatService.findAll();
+        assertEquals(seats, result);
+        verify(seatRepository, times(1)).findAll();
+    }
+
+    @Test
+    void testCreateSeats() {
+        Flight flight = new Flight();
+        flight.setId(1L);
+        flight.setOrigin("NYC");
+        flight.setDestiny("LAX");
+        flight.setSeatsQuantity(3);
+
+        when(flightRepository.findByOriginAndDestiny("NYC", "LAX")).thenReturn(flight);
+        when(seatRepository.saveAll(anyList())).thenReturn(new ArrayList<>());
+
+        List<Seat> result = seatService.createSeats("NYC", "LAX");
+        assertEquals(0, result.size());
+        verify(flightRepository, times(1)).findByOriginAndDestiny("NYC", "LAX");
+        verify(seatRepository, times(1)).saveAll(anyList());
+    }
+
+    @Test
+    void testFindByFlightOriginAndFlightDestinyAndAvailableTrue() {
+        Flight flight = new Flight();
+        flight.setId(1L);
+        flight.setOrigin("NYC");
+        flight.setDestiny("LAX");
+
+        List<Seat> seats = new ArrayList<>();
+        seats.add(new Seat("A1", true, flight));
+
+        when(flightRepository.findByOriginAndDestiny("NYC", "LAX")).thenReturn(flight);
+        when(seatRepository.findByFlightIdAndAvailableTrue(1L)).thenReturn(seats);
+
+        SeatResponseDto result = seatService.findByFlightOriginAndFlightDestinyAndAvailableTrue("NYC", "LAX");
+        assertNotNull(result);
+        assertEquals("NYC", result.origen());
+        assertEquals("LAX", result.destino());
+        assertEquals(1, result.asientosDisponibles().size());
+        verify(flightRepository, times(1)).findByOriginAndDestiny("NYC", "LAX");
+        verify(seatRepository, times(1)).findByFlightIdAndAvailableTrue(1L);
+    }
+}
+
